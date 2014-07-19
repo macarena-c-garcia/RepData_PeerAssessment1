@@ -1,0 +1,145 @@
+# Reproducible Research
+## Assignment 1
+
+### Written by Macarena C. Garcia
+### Date: 11 July 2014
+
+
+## Loading and processing the data
+
+Step 1: Set working directory
+```{r set working directory}
+setwd("/Users/usaid/Desktop/RepData_PeerAssessment1/") 
+```
+
+Step 2: Load "activity.csv" data file into R
+```{r load data file}
+activity <- read.csv("/Users/usaid/Desktop/RepData_PeerAssessment1/activity.csv") 
+```
+
+Step 3: Convert file to data table
+```{r covert to data table}
+x <- data.frame(activity)
+```
+
+Step 4: Convert date into date format
+```{r date conversion}
+x$date <- as.Date(x$date)
+```
+
+
+## What is mean total number of steps taken per day?
+
+Step 1: Sum the steps for each day in the data set
+```{r subsetting by sum of steps per day}
+subData <- aggregate(steps ~ date, data = x, sum)
+head(subData)
+summary(subData)
+str(subData)
+```
+
+Step 2: Create histogram
+```{r histogram}
+library("ggplot2")
+plot1 <- ggplot(subData, aes(x=steps)) + geom_histogram(binwidth = 2500, colour="white")
+plot1 + labs(title = "Total number of steps taken per day")
+```
+
+Step 3: Calculate and report the **mean** and **median** total number of steps taken per day
+```{r mean and median}
+steps <- subData$steps
+mean(steps, na.rm=TRUE)
+median(steps, na.rm=TRUE)
+```
+
+## What is the average daily activity pattern?
+
+Step 1: Subset data table to only include: date, time interval
+```{r subsetting}
+subData2 <- aggregate(steps ~ interval, data = x, mean)
+head(subData2)
+summary(subData2)
+str(subData2)
+```
+
+Step 2: Make a time series plot 
+```{r time series plot}
+plot2 <- ggplot(data=subData2, aes(x=interval, y=steps)) + geom_line() + labs(title = "Average no. of steps taken per day by interval") + labs(x = "interval") + labs(y = "Average no. of steps per day") + geom_line(size=1, col = "blue")
+plot2 + coord_cartesian(xlim = c(0, 2500))
+```
+
+Step 3: Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps? 
+```{r max steps in which interval}
+subset(subData2, steps > 200)
+```
+**Answer** = 5-minute interval number 08:35
+
+## Imputing missing values
+
+Step 1: Calculate and report the total number of missing values in the dataset
+```{r reporting missing values}
+colSums(is.na(x))
+```
+
+Step 2: Devise a strategy for filling in all of the missing values in the dataset
+```{r filling in missing values}
+library(VIM)
+set.seed(1328311)
+newDF <- hotdeck(x, variable = "steps", ord_var = "date", domain_var = "interval", impNA = TRUE)
+```
+I chose to implement the popular Sequential, Random (within a domain) hot-deck algorithm for imputation which was the cleanest and simplest way to impute 'donor' values to missing values. 
+
+Step 3: Create a new dataset that is equal to the original dataset but with the missing data filled in
+```{r creating a new dataset}
+summary(newDF)
+```
+The summary above shows all values that have been imputed as TRUE (right hand column) and demonstrates that this new database has ZERO NAs. 
+
+Step 4:Make a histogram of the total number of steps taken each day 
+```{r make a histogram using impDF}
+subNEW <- aggregate(steps ~ date, data = newDF, sum)
+histNEW <- ggplot(subNEW, aes(x=steps)) + geom_histogram(binwidth = 2500, colour="white")
+histNEW + labs(title = "Total number of steps taken per day")
+```
+
+Step 5: Calculate and report the mean and median total number of steps taken per day.
+```{r mean and median of impDF}
+NEWsteps <- subNEW$steps
+mean(NEWsteps)
+median(NEWsteps)
+```
+
+Step 6: Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+**YES** The values differ and the impact of the imputed missing data basically resulted in a reduction of the mean value for steps taken daily from an original of 10766.19 to 10470.43, and similarly, the median went from an original of 10765 to 10571 with the addition of imputed data. 
+
+## Are there differences in activity patterns between weekdays and weekends?
+
+Step 1: Create a new factor variable in the dataset with two levels -- "weekday" and "weekend" indicating whether a given date is a weekday or weekend day
+```{r}
+dateDF <- transform(newDF, weekend=as.POSIXlt(date, format='%Y/%m/%d')$wday %in% c(0, 6))
+dateDF$dayOfWeek <- "weekday" 
+dateDF$dayOfWeek[dateDF$weekend == "TRUE"]  <- "weekend" 
+dateDF$dayOfWeek <- as.factor(dateDF$dayOfWeek)
+dateDF$interval <- factor(dateDF$interval)
+head(dateDF)
+summary(dateDF)
+str(dateDF)
+```
+
+Step 2: Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis)
+```{r create data frames for means of steps by weekday and weekend}
+weekEnd <- subset(dateDF, dayOfWeek == "weekend")
+weekEndMean <- aggregate(steps ~ interval, data = weekEnd, mean)
+weekDay <- subset(dateDF, dayOfWeek == "weekday")
+weekDayMean <- aggregate(steps ~ interval, data = weekDay, mean)
+```
+
+```{r make panel plot using data frames created above}
+plotEND <- ggplot(data=weekEndMean, aes(x=as.numeric(interval), y=steps)) + geom_line() + labs(title = "WEEKEND") + labs(x = "interval") + labs(y = "No. of steps") + geom_line(size=1, col = "blue") + coord_cartesian(ylim = c(0, 200))
+plotDAY <- ggplot(data=weekDayMean, aes(x=as.numeric(interval), y=steps)) + geom_line() + labs(title = "WEEKDAY") + labs(x = "interval") + labs(y = "No. of steps") + geom_line(size=1, col = "red") + coord_cartesian(ylim = c(0, 200))
+library(gridExtra)
+grid.arrange(plotEND, plotDAY, nrow = 2)
+```
+
+## End of document
